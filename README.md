@@ -63,7 +63,9 @@ Alloy is pre-configured to collect:
 ## Troubleshooting
 
 ### "Volume not found" or MinIO errors
-Ensure persistence is enabled or the buckets are created previously. The current `values.yaml` configures MinIO with `10Gi` persistence and automatically creates default buckets (`mimir-blocks`, `loki-data`, etc.).
+The stack is configured with **ephemeral usage (non-persistent)** for the POC. MinIO runs in standalone mode without persistent volumes.
+- **Data Loss**: All data (logs, metrics, traces) is lost when the cluster is deleted or the MinIO pod restarts.
+- **Buckets**: Buckets (`mimir-blocks`, `loki-data`, etc.) are created automatically on startup by the `buckets` configuration in `values.yaml`.
 
 ### "No Data" in Grafana
 - **Availability**: Verify Alloy is running: `kubectl get pods -n monitoring -l app.kubernetes.io/name=alloy`.
