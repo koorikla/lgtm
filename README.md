@@ -11,10 +11,13 @@ This umbrella chart deploys a full Grafana observability stack tailored for a Pr
 - **Alloy**: OpenTelemetry Collector and Prometheus Agent.
 - **MinIO**: S3-compatible object storage (via Bitnami chart).
 
-## Prerequisites
+## Prerequisites for local development
 
+- **Container Runtime**: Docker or Podman.
+- **Kind**: For creating local clusters.
 - **Kubernetes Cluster**: (e.g., Kind, k3d, or a managed cluster).
 - **Helm**: v3+.
+- **Kubectl**: 
 - **Make**: For automation commands.
 
 ## Getting Started
