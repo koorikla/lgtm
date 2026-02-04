@@ -1,0 +1,241 @@
+# Minio Configuration (POC Storage)
+minio:
+  enabled: true
+  mode: standalone
+  replicas: 1
+  rootUser: "minio"
+  rootPassword: "minio123"
+  buckets:
+    - name: mimir-blocks
+      policy: none
+      purge: false
+    - name: mimir-ruler
+      policy: none
+      purge: false
+    - name: mimir-alertmanager
+      policy: none
+      purge: false
+    - name: loki-data
+      policy: none
+      purge: false
+    - name: tempo-data
+      policy: none
+      purge: false
+  persistence:
+    enabled: false # Ephemeral for POC
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+
+# Mimir Configuration
+mimir-distributed:
+  enabled: true
+  minio:
+    enabled: false
+  mimir:
+    structuredConfig:
+      common:
+        storage:
+          backend: s3
+          s3:
+            endpoint: "grafana-stack-minio:9000"
+            access_key_id: "minio"
+            secret_access_key: "minio123"
+            insecure: true
+            bucket_name: "mimir-blocks"
+      blocks_storage:
+        s3:
+          bucket_name: "mimir-blocks"
+      ruler_storage:
+        s3:
+          bucket_name: "mimir-ruler"
+      alertmanager_storage:
+        s3:
+          bucket_name: "mimir-alertmanager"
+
+
+# Loki Configuration (Monolithic)
+loki:
+  enabled: true
+  deploymentMode: SingleBinary
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    schemaConfig:
+      configs:
+        - from: 2024-04-01
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    storage:
+      type: 's3'
+      bucketNames:
+        chunks: loki-data
+        ruler: loki-data
+        admin: loki-data
+      s3:
+        endpoint: http://grafana-stack-minio:9000
+        accessKeyId: minio
+        secretAccessKey: minio123
+        s3ForcePathStyle: true
+        insecure: true
+  singleBinary:
+    replicas: 1
+  # Disable other modes
+  write:
+    replicas: 0
+  read:
+    replicas: 0
+  backend:
+    replicas: 0
+  chunksCache:
+    enabled: true
+    allocatedMemory: 256
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 600Mi
+
+# Tempo Configuration
+tempo:
+  enabled: true
+  service:
+    extraPorts:
+      - name: grpc-query
+        port: 9095
+        targetPort: 9095
+        protocol: TCP
+  tempo:
+    server:
+      grpc_listen_port: 9095
+    storage:
+      trace:
+        backend: s3
+        s3:
+          bucket: tempo-data
+          endpoint: grafana-stack-minio:9000
+          access_key: minio
+          secret_key: minio123
+          insecure: true
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Mimir
+          type: prometheus
+          uid: mimir
+          url: http://grafana-stack-mimir-gateway.monitoring.svc:80/prometheus
+          # access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://grafana-stack-loki-gateway.monitoring.svc:80
+          access: proxy
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://grafana-stack-tempo.monitoring.svc:3200
+          access: proxy
+
+
+
+
+
+# Alloy Configuration
+alloy:
+  alloy:
+    configMap:
+      content: |
+        // --- LOGGING SECTION ---
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.kubernetes.pods.targets
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.source.kubernetes_events "example" {
+          // Only watch for events in the kube-system namespace.
+          namespaces = ["kube-system"]
+
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://grafana-stack-loki-gateway.monitoring.svc:80/loki/api/v1/push"
+          }
+        }
+
+
+
+        // --- METRICS SECTION ---
+
+        //  Gather metrics from ServiceMonitors and PodMonitors (Prometheus Operator CRDs)
+        prometheus.operator.servicemonitors "all" {
+          forward_to = [prometheus.remote_write.endpoint.receiver]
+        }
+
+        prometheus.operator.podmonitors "all" {
+          forward_to = [prometheus.remote_write.endpoint.receiver]
+        }
+
+        // 5. Gather metrics from Pods with specific annotations (the "classic" way)
+        // This looks for prometheus.io/scrape: "true"
+        discovery.kubernetes "annotated_pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "annotated_pods" {
+          targets = discovery.kubernetes.annotated_pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+            action        = "keep"
+            regex         = "true"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+            action        = "replace"
+            target_label  = "__metrics_path__"
+            regex         = "(.+)"
+          }
+
+          rule {
+            source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+            action        = "replace"
+            target_label  = "__address__"
+            regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+            replacement   = "$1:$2"
+          }
+        }
+
+        prometheus.scrape "annotated_pods" {
+          targets    = discovery.relabel.annotated_pods.output
+          forward_to = [prometheus.remote_write.endpoint.receiver]
+        }
+
+
+        prometheus.remote_write "endpoint" {
+          endpoint {
+            url = "http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push"
+          }
+        }
+
