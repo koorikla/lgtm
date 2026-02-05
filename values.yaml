@@ -257,11 +257,11 @@ k8s-monitoring:
     #     username: "my-username"
     #     password: "my-password"
 
-    - name: localPrometheus
+    - name: mimir
       type: prometheus
       url: http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push
 
-    - name: hostedLogs
+    - name: loki
       type: loki
       url: http://grafana-stack-loki-gateway.monitoring.svc:80/loki/api/v1/push
       # auth:
@@ -316,7 +316,7 @@ k8s-monitoring:
     # To see additional options, please see the [Cluster Monitoring feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-cluster-metrics).
     opencost:
       enabled: true
-      metricsSource: localPrometheus
+      metricsSource: mimir
       opencost:
         exporter:
           defaultClusterId: "kind"
