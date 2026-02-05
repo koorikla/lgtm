@@ -187,10 +187,13 @@ grafana:
         datasource: Mimir
       loki-logs:
         gnetId: 13639
-        revision: 1
+        revision: 2
         datasource: Loki
 
-
+      opencost-overview:
+        gnetId: 13639
+        revision: 4
+        datasource: Loki
 
 
 
