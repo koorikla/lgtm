@@ -4,6 +4,8 @@ CLUSTER_NAME := grafana-stack
 
 cluster:
 	kind create cluster --name $(CLUSTER_NAME)
+	# Label the control plane node for opencost
+	kubectl label nodes $(CLUSTER_NAME)-control-plane topology.kubernetes.io/region=local
 	sleep 10
 
 install:

@@ -274,6 +274,15 @@ k8s-monitoring:
     collector: alloy-metrics
 
     # To see additional options, please see the [Cluster Monitoring feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-cluster-metrics).
+    opencost:
+      enabled: true
+      metricsSource: localPrometheus
+      opencost:
+        exporter:
+          defaultClusterId: "kind"
+        prometheus:
+          external:
+            url: "http://grafana-stack-mimir-gateway.monitoring.svc:80/prometheus"
 
   # -- Cluster events.
   # Requires a destination that supports logs.
