@@ -150,6 +150,46 @@ grafana:
           url: http://grafana-stack-tempo.monitoring.svc:3200
           access: proxy
 
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # node-exporter:
+      #   gnetId: 1860
+      #   revision: 37
+      #   datasource: Mimir
+      k8s-views-global:
+        gnetId: 15757
+        revision: 37
+        datasource: Mimir
+      k8s-views-namespaces:
+        gnetId: 15758
+        revision: 34
+        datasource: Mimir
+      k8s-views-nodes:
+        gnetId: 15759
+        revision: 28
+        datasource: Mimir
+      k8s-views-pods:
+        gnetId: 15760
+        revision: 29
+        datasource: Mimir
+      loki-logs:
+        gnetId: 13639
+        revision: 1
+        datasource: Loki
+
 
 
 
