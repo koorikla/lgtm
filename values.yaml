@@ -191,12 +191,9 @@ grafana:
         datasource: Loki
 
       opencost-overview:
-        gnetId: 13639
-        revision: 4
-        datasource: Loki
-
-
-
+        gnetId: 22208
+        revision: 1
+        datasource: Mimir
 
 k8s-monitoring:
   cluster:
@@ -245,9 +242,6 @@ k8s-monitoring:
   # Destinations
   #
 
-
-
-
   # -- The list of destinations where telemetry data will be sent.
   # See the [destinations documentation](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/docs/destinations/README.md) for more information.
   # @section -- Destinations
@@ -283,9 +277,6 @@ k8s-monitoring:
     #   metrics: { enabled: true }
     #   logs:    { enabled: true }
     #   traces:  { enabled: true }
-
-
-
 
 
   # -- A map of destinations where telemetry data will be sent. Keys will be used as the destination name.
@@ -713,116 +704,3 @@ k8s-monitoring:
   # -- Deploy additional manifest objects
   # @section -- Extra Objects
   extraObjects: []
-  # - apiVersion: external-secrets.io/v1beta1
-  #   kind: ExternalSecret
-  #   metadata:
-  #     name: prometheus-secret
-  #   spec:
-  #     refreshInterval: 1h
-  #     secretStoreRef:
-  #       kind: SecretStore
-  #       name: example
-  #     target:
-  #       template:
-  #         data:
-  #           prometheus_host: "{{ .Values.externalServices.prometheus.host }}"
-  #           username: "{{`{{ .username }}`}}"
-  #           password: "{{`{{ .password }}`}}"
-  #     dataFrom:
-  #     - extract:
-  #         key: mysecret
-
-
-
-
-
-
-
-
-
-
-
-# # Alloy Configuration
-# alloy:
-#   alloy:
-#     configMap:
-#       content: |
-#         // --- LOGGING SECTION ---
-
-#         discovery.kubernetes "pods" {
-#           role = "pod"
-#         }
-
-#         loki.source.kubernetes "pods" {
-#           targets    = discovery.kubernetes.pods.targets
-#           forward_to = [loki.write.local.receiver]
-#         }
-
-#         loki.source.kubernetes_events "example" {
-#           // Only watch for events in the kube-system namespace.
-#           namespaces = ["kube-system"]
-
-#           forward_to = [loki.write.local.receiver]
-#         }
-
-#         loki.write "local" {
-#           endpoint {
-#             url = "http://grafana-stack-loki-gateway.monitoring.svc:80/loki/api/v1/push"
-#           }
-#         }
-
-
-
-#         // --- METRICS SECTION ---
-
-#         //  Gather metrics from ServiceMonitors and PodMonitors (Prometheus Operator CRDs)
-#         prometheus.operator.servicemonitors "all" {
-#           forward_to = [prometheus.remote_write.endpoint.receiver]
-#         }
-
-#         prometheus.operator.podmonitors "all" {
-#           forward_to = [prometheus.remote_write.endpoint.receiver]
-#         }
-
-#         // 5. Gather metrics from Pods with specific annotations (the "classic" way)
-#         // This looks for prometheus.io/scrape: "true"
-#         discovery.kubernetes "annotated_pods" {
-#           role = "pod"
-#         }
-
-#         discovery.relabel "annotated_pods" {
-#           targets = discovery.kubernetes.annotated_pods.targets
-
-#           rule {
-#             source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
-#             action        = "keep"
-#             regex         = "true"
-#           }
-
-#           rule {
-#             source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
-#             action        = "replace"
-#             target_label  = "__metrics_path__"
-#             regex         = "(.+)"
-#           }
-
-#           rule {
-#             source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
-#             action        = "replace"
-#             target_label  = "__address__"
-#             regex         = "([^:]+)(?::\\d+)?;(\\d+)"
-#             replacement   = "$1:$2"
-#           }
-#         }
-
-#         prometheus.scrape "annotated_pods" {
-#           targets    = discovery.relabel.annotated_pods.output
-#           forward_to = [prometheus.remote_write.endpoint.receiver]
-#         }
-
-
-#         prometheus.remote_write "endpoint" {
-#           endpoint {
-#             url = "http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push"
-#           }
-#         }

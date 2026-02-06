@@ -2,36 +2,50 @@
 set -e
 
 echo "Waiting for pods to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=grafana-stack --timeout=600s --all
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=grafana-stack -n monitoring --timeout=600s --all
 
 echo "Port-forwarding Grafana..."
-kubectl port-forward -n monitoring services/grafana-stack 3000:3000  &
+kubectl port-forward -n monitoring services/grafana-stack 3000:3000 &
 PF_PID=$!
 
 # Cleanup port-forward on exit
-trap "kill $PF_PID" EXIT
+trap "kill $PF_PID 2>/dev/null || true" EXIT
 
 sleep 5
 
 echo "Checking Grafana Health..."
 curl -f http://admin:admin@localhost:3000/api/health
 
+echo ""
 echo "Verifying Datasources..."
-# List datasources
 curl -f -u admin:admin http://localhost:3000/api/datasources
 
-echo "Test Passed!"
+echo ""
+echo "Basic tests passed!"
 
 #######################
-echo !!!! IS a MESS, port forward mimir and loki for further tests - expleted to fail for now
+# Manual tests for Mimir and Loki - expected to fail without port-forwards
+#######################
 
+echo ""
+echo "Setting up port-forwards for Mimir and Loki..."
+kubectl port-forward -n monitoring services/grafana-stack-mimir-gateway 8080:80 &
+PF_MIMIR_PID=$!
+kubectl port-forward -n monitoring services/grafana-stack-loki-gateway 8089:80 &
+PF_LOKI_PID=$!
+
+trap "kill $PF_PID $PF_MIMIR_PID $PF_LOKI_PID 2>/dev/null || true" EXIT
+
+sleep 5
+
+echo "Testing Mimir - pushing a test metric via OTLP..."
 curl -X POST -H "Content-Type: application/json" \
   http://localhost:8080/otlp/v1/metrics \
   -d '{
     "resourceMetrics": [{
       "scopeMetrics": [{
         "metrics": [{
-          "name": "test_gauge_valuez",
+          "name": "test_gauge_value",
           "gauge": {
             "dataPoints": [{
               "asInt": "42",
@@ -45,13 +59,13 @@ curl -X POST -H "Content-Type: application/json" \
     }]
   }'
 
-
+echo ""
+echo "Querying Mimir for the test metric..."
 curl -G "http://localhost:8080/prometheus/api/v1/query" \
   --data-urlencode 'query=test_gauge_value{test_label="hello_mimir"}'
 
-
-
-
+echo ""
+echo "Testing Loki - pushing a test log entry..."
 curl -X POST -H "Content-Type: application/json" \
   http://localhost:8089/loki/api/v1/push \
   -d "{
@@ -65,5 +79,10 @@ curl -X POST -H "Content-Type: application/json" \
     ]
   }"
 
+echo ""
+echo "Querying Loki for the test log..."
 curl -G "http://localhost:8089/loki/api/v1/query_range" \
   --data-urlencode 'query={job="test-curl"}'
+
+echo ""
+echo "All tests completed!"
