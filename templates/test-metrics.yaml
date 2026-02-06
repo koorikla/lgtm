@@ -17,17 +17,19 @@ spec:
         - name: metrics
           containerPort: 8080
 ---
-# apiVersion: monitoring.coreos.com/v1
-# kind: PodMonitor
-# metadata:
-#   name: test-metrics-monitor
-#   labels:
-#     release: {{ .Release.Name }}
-# spec:
-#   selector:
-#     matchLabels:
-#       app: test-metrics
-#   podMetricsEndpoints:
-#     - port: metrics
-#       path: /metrics
-#       interval: 15s
+{{- if false }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: test-metrics-monitor
+  labels:
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: test-metrics
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+{{- end }}
