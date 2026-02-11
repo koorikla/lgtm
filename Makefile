@@ -11,6 +11,9 @@ cluster:
 install:
 	helm dependency update
 	helm upgrade --install grafana-stack . -n monitoring --timeout 15m --create-namespace
+	
+update:
+	helm upgrade --install grafana-stack . -n monitoring --timeout 15m --create-namespace
 
 test:
 	./test.sh

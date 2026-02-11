@@ -9,6 +9,15 @@ metadata:
     prometheus.io/scrape: "true"
     prometheus.io/port: "8080"
     prometheus.io/path: "/metrics"
+    # profiles.grafana.com/memory.scrape: "true"
+    # profiles.grafana.com/memory.port_name: "metrics"
+    # profiles.grafana.com/cpu.scrape: "true"
+    # profiles.grafana.com/cpu.port_name: "metrics"
+    # profiles.grafana.com/goroutine.scrape: "true"
+    # profiles.grafana.com/goroutine.port_name: "metrics"
+    # profiles.grafana.com/service_repository: 'https://github.com/grafana/alloy'
+    # profiles.grafana.com/service_git_ref: 'v1.8.1'
+
 spec:
   containers:
     - name: prometheus-example-app

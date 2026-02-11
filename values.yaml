@@ -112,6 +112,10 @@ tempo:
         port: 9095
         targetPort: 9095
         protocol: TCP
+      - name: memberlist
+        port: 7946
+        targetPort: 7946
+        protocol: TCP
   tempo:
     server:
       grpc_listen_port: 9095
@@ -124,11 +128,30 @@ tempo:
           access_key: minio
           secret_key: minio123
           insecure: true
+    # overrides:
+    #   defaults: 
+    #    metrics_generator:
+    #      processors:
+    #        - service-graphs
+    #        - span-metrics
+    #        - localblocks
+    memberlist:
+      abort_if_cluster_join_fails: false
+      bind_port: 7946
+      join_members:
+        - grafana-stack-tempo.monitoring.svc.cluster.local:7946
+    metricsGenerator:
+      enabled: true
+      remoteWrite:
+        - url: http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push
 
 # Grafana Configuration
 grafana:
   enabled: true
   adminPassword: "admin"
+  plugins:
+    - grafana-pyroscope-app
+
   datasources:
     datasources.yaml:
       apiVersion: 1
@@ -149,7 +172,18 @@ grafana:
           uid: tempo
           url: http://grafana-stack-tempo.monitoring.svc:3200
           access: proxy
-
+          jsonData:
+            httpMethod: GET
+            serviceMap:
+              datasourceUid: 'mimir'
+        - name: Pyroscope
+          type: grafana-pyroscope-datasource
+          uid: pyroscope
+          url: http://grafana-stack-pyroscope.monitoring:4040
+          access: proxy
+          jsonData:
+            logsUid: loki
+            
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -195,7 +229,11 @@ grafana:
         revision: 4
         datasource: Loki
 
-
+pyroscope:
+  enabled: true
+  alloy:
+    # we are using alloy operator to deploy alloy, so we don't need to deploy alloy here
+    enabled: false
 
 
 k8s-monitoring:
@@ -244,47 +282,26 @@ k8s-monitoring:
   #
   # Destinations
   #
-
-
-
-
   # -- The list of destinations where telemetry data will be sent.
   # See the [destinations documentation](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/docs/destinations/README.md) for more information.
   # @section -- Destinations
   destinations:
-    # - name: hostedMetrics
-    #   type: prometheus
-    #   url: https://prometheus.example.com/api/prom/push
-    #   auth:
-    #     type: basic
-    #     username: "my-username"
-    #     password: "my-password"
-
     - name: mimir
       type: prometheus
       url: http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push
-
-    - name: loki
-      type: loki
-      url: http://grafana-stack-loki-gateway.monitoring.svc:80/loki/api/v1/push
-      # auth:
-      #   type: basic
-      #   username: "my-username"
-      #   password: "my-password"
-      #   tenantIdFrom: env("LOKI_TENANT_ID")
-
-    # - name: otlpGateway
-    #   type: otlp
-    #   url: https://otlp.example.com:4317/v1/traces
     #   auth:
     #     type: basic
     #     username: "my-username"
     #     password: "my-password"
-    #   metrics: { enabled: true }
-    #   logs:    { enabled: true }
-    #   traces:  { enabled: true }
-
-
+    - name: loki
+      type: loki
+      url: http://grafana-stack-loki-gateway.monitoring.svc:80/loki/api/v1/push
+    - name: tempo
+      type: otlp
+      url: http://grafana-stack-tempo.monitoring.svc:4317
+    - name: pyroscope
+      type: pyroscope
+      url: http://grafana-stack-pyroscope.monitoring:4040
 
 
 
@@ -419,7 +436,7 @@ k8s-monitoring:
   applicationObservability:
     # -- Enable receiving Application Observability.
     # @section -- Features - Application Observability
-    enabled: false
+    enabled: true
 
     # -- The destinations where application data will be sent. If empty, all capable destinations will be used.
     # @section -- Features - Application Observability
@@ -427,7 +444,10 @@ k8s-monitoring:
 
     # -- The receivers used for receiving application data.
     # @section -- Features - Application Observability
-    receivers: {}
+    receivers:
+      otlp:
+        grpc:
+          enabled: true
 
     # -- Which collector to assign this feature to. Do not change this unless you are sure of what you are doing.
     # @section -- Features - Application Observability
@@ -444,7 +464,7 @@ k8s-monitoring:
   autoInstrumentation:
     # -- Enable automatic instrumentation for applications.
     # @section -- Features - Auto-Instrumentation
-    enabled: false
+    enabled: true
 
     # -- The destinations where application data will be sent. If empty, all capable destinations will be used.
     # @section -- Features - Auto-Instrumentation
@@ -507,7 +527,7 @@ k8s-monitoring:
   profiling:
     # -- Enable gathering profiles from applications.
     # @section -- Features - Profiling
-    enabled: false
+    enabled: true
 
     # -- The destinations where profiles will be sent. If empty, all profiles-capable destinations will be used.
     # @section -- Features - Profiling
@@ -528,7 +548,7 @@ k8s-monitoring:
   profilesReceiver:
     # -- Enable gathering profiles from applications.
     # @section -- Features - Profiles Receiver
-    enabled: false
+    enabled: true
 
     # -- The destinations where profiles will be sent. If empty, all profiles-capable destinations will be used.
     # @section -- Features - Profiles Receiver
@@ -610,12 +630,20 @@ k8s-monitoring:
   alloy-receiver:
     # -- Deploy the Alloy instance for opening receivers to collect application data.
     # @section -- Collectors - Alloy Receiver
-    enabled: false
+    enabled: true
 
     alloy:
       # -- The ports to expose for the Alloy receiver.
       # @section -- Collectors - Alloy Receiver
-      extraPorts: []
+      extraPorts:
+        - name: profiles
+          port: 4040
+          targetPort: 4040
+          protocol: TCP
+        - name: otlp-grpc
+          port: 4317
+          targetPort: 4317
+          protocol: TCP
 
     extraService:
       # -- Create an extra service for the Alloy receiver. This service will mirror the alloy-receiver service, but its
@@ -634,7 +662,7 @@ k8s-monitoring:
   alloy-profiles:
     # -- Deploy the Alloy instance for gathering profiles.
     # @section -- Collectors - Alloy Profiles
-    enabled: false
+    enabled: true
 
   collectorCommon:
     # -- Settings to apply to all Alloy instances created by this Helm chart. This includes Alloy instances created by
@@ -826,3 +854,12 @@ k8s-monitoring:
 #             url = "http://grafana-stack-mimir-gateway.monitoring.svc:80/api/v1/push"
 #           }
 #         }
+
+# kubectl run tracegen -n monitoring \
+#   --image=ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest \
+#   --restart=Never \
+#   -- traces \
+#   --otlp-endpoint=grafana-stack-tempo.monitoring.svc:4317 \
+#   --otlp-insecure \
+#   --duration=30s \
+#   --rate=10
